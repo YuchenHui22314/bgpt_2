@@ -21,19 +21,25 @@ EVAL_FOLDERS = [
                 ]                                               # Folder containing evaluation data
 EVAL_SPLIT = 0.01                                                # Split of evaluation data
 
+##########################################
 # Configuration for the paths
+##########################################
 PRETRAINED_PATH = "weights-irish.pth"                            # Path to pre-trained weights
-WEIGHTS_PATH = "weights-irish.pth"                        # Path to save weights
-LOGS_PATH = "logs-irish.txt"                              # Path to save logs
+WEIGHTS_PATH = "weights-irish.pth"                               # Path to save weights
+LOGS_PATH = "logs-irish.txt"                                     # Path to save logs
 
+##########################################
 # Configuration for the model
+##########################################
 PATCH_SIZE = 16                                                 # Patch Size
-PATCH_LENGTH = 1024                                             # Patch Length
+PATCH_LENGTH = 1024                          #shouldn't be 512? # Patch Length
 BYTE_NUM_LAYERS = 3                                             # Number of layers in the decoder
 PATCH_NUM_LAYERS = 12                                           # Number of layers in the encoder
 HIDDEN_SIZE = 768                                               # Hidden Size
 
-# Configuration for the training
+##########################################
+## Configuration for the training
+##########################################
 NUM_EPOCHS = 32                                                 # Number of epochs to train for (if early stopping doesn't intervene)
 LEARNING_RATE = 1e-5                                            # Learning rate for the optimizer
 BATCH_SIZE = 8                                                  # Batch size for training
@@ -46,7 +52,9 @@ WANDB_LOG = True                                                # Whether to log
 SHOW_WARNS = False                                              # Whether to show warnings
 DETERMINISTIC = True                                           # Whether to set random seed for reproducibility
 
+##########################################
 # Configuration for inference
+##########################################
 INFERENCE_WEIGHTS_PATH = "weights-conversion.pth"               # Path to weights for inference
 INPUT_EXT = "abc"                                               # Extension of input files, used for conversion
 TARGET_EXT = "mid"                                              # Extension of target files
