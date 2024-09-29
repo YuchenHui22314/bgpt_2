@@ -119,11 +119,14 @@ class bGPTLMHeadModel(PreTrainedModel):
                 masks: torch.Tensor):
         """
         The forward pass of the bGPT model.
-        :param patches: the patches to be encoded
+        :param patches: the patches to be encoded, size: (batch_size, byte_sequence_length)
         :param masks: the masks for the patches
         :return: the decoded patches
         """
+        # split byte sequence into patches
         patches = patches.reshape(len(patches), -1, PATCH_SIZE)
+        
+        # patch decoder output
         encoded_patches = self.patch_level_decoder(patches, masks)["last_hidden_state"]
         
         left_shift_masks = masks * (masks.flip(1).cumsum(1).flip(1) > 1)

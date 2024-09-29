@@ -17,13 +17,14 @@ patch_config = GPT2Config(num_hidden_layers=PATCH_NUM_LAYERS,
                     max_position_embeddings=PATCH_LENGTH,
                     hidden_size=HIDDEN_SIZE,
                     n_head=HIDDEN_SIZE//64,
-                    vocab_size=1)
+                    vocab_size=1)   # vocal size is not important here.
 byte_config = GPT2Config(num_hidden_layers=BYTE_NUM_LAYERS, 
                     max_length=PATCH_SIZE+1, 
                     max_position_embeddings=PATCH_SIZE+1,
                     hidden_size=HIDDEN_SIZE,
                     n_head=HIDDEN_SIZE//64,
-                    vocab_size=256+1)
+                    vocab_size=256+1) # vocal size is all possible values of a byte plus 1 for eos.
+
 model = bGPTLMHeadModel(patch_config, byte_config)
 print("Parameter Number: "+str(sum(p.numel() for p in model.parameters() if p.requires_grad)))
 
@@ -44,6 +45,7 @@ def read_bytes(filename):
     ext = [byte for byte in ext][:PATCH_SIZE]
 
     # read raw bytes from file.
+    # TODO: check if it is utf-8
     with open(filename, 'rb') as f:
         file_bytes = f.read()
 
@@ -96,6 +98,8 @@ for i in files:
         byte_list = bos_patch.copy()
 
     prefix_len = len(byte_list)
+
+    # batch size is 1
     input_patches = torch.tensor([byte_list], device=device)
     while input_patches.shape[1]<PATCH_LENGTH*PATCH_SIZE:
         predicted_patch = model.generate(input_patches.unsqueeze(0),
