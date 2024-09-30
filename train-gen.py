@@ -16,13 +16,18 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
 
+#############################
 # Set up distributed training
+#############################
+
+# world size, rank and local rank are set by commands
+# such as torchrun.
 world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
 global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else 0
 local_rank = int(os.environ['LOCAL_RANK']) if 'LOCAL_RANK' in os.environ else 0
 
 if world_size > 1:
-    torch.cuda.set_device(local_rank)
+    torch.cuda.set_device(local_rank)   
     device = torch.device("cuda", local_rank)
     dist.init_process_group(backend='nccl') if world_size > 1 else None
 else:
@@ -66,8 +71,12 @@ is_autocast = True
 optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     
 def collate_batch(input_batches):
-    
+
+    # a = zip(*[(1, 4), (2, 5), (3, 6)]) 
+    # print(list(a)) # [(1, 2, 3), (4, 5, 6)]
+
     input_patches, input_masks = zip(*input_batches)
+    # pad to the same length (max length in the batch)
     input_patches = torch.nn.utils.rnn.pad_sequence(input_patches, batch_first=True, padding_value=256)
     input_masks = torch.nn.utils.rnn.pad_sequence(input_masks, batch_first=True, padding_value=0)
 
@@ -109,7 +118,17 @@ def read_bytes(filename):
         bytes = bytes + [256] * (PATCH_SIZE - len(bytes) % PATCH_SIZE)
 
     bos_patch = ext + [256] * (PATCH_SIZE - len(ext))
+    # 1. also add a bos patch at the beginning, as in inference.
+    # 2. add an eos patch at the end to indicate the end of the sequence.
     bytes = bos_patch + bytes + [256] * PATCH_SIZE
+
+    # TODO: the meaning of this truncation is not clear.
+    # XXX Q1: shouldn't the training file already be split to the desired length?
+    # XXX Q2: what if we truncate the head? it will lose the extension info.
+
+    # "head": Keep the beginning part of the byte sequence.
+    # "body": Keep a random middle segment of the byte sequence.
+    # "tail": Keep the ending part of the byte sequence.
 
     if len(bytes) > PATCH_LENGTH*PATCH_SIZE:
         if SHOW_WARNS:
@@ -124,12 +143,16 @@ def read_bytes(filename):
         else:
             bytes = bytes[-PATCH_LENGTH*PATCH_SIZE:]
 
+    # TODO: what is the meaning of this mask? seems useless?
     masks = [1] * (len(bytes)//PATCH_SIZE)
 
     return bytes, masks
 
 class ByteDataset(Dataset):
     def __init__(self, filenames, split='train'):
+        ############################################
+        # construct filenames pairs and extensions
+        ############################################
         if CONVERSION_MODE == None:
             print(f"Autoregressive Training Mode: loading {len(filenames)} files for {split}")
             self.filenames = filenames
@@ -149,6 +172,7 @@ class ByteDataset(Dataset):
             input_ext = CONVERSION_MODE.split("&")[0]
             target_ext = CONVERSION_MODE.split("&")[1]
 
+            # if &, then each file appears twice, once as input and once as target.
             self.filenames = []
             for filename in filenames:
                 if filename.split('.')[-1]==input_ext:
@@ -167,19 +191,26 @@ class ByteDataset(Dataset):
 
     def __getitem__(self, idx):
         
+        ############################################
+        # read bytes from file
+        ############################################
         if CONVERSION_MODE == None:
             filename = self.filenames[idx]
             file_bytes, file_masks = read_bytes(filename)
         else:
             input_filename, target_filename = self.filenames[idx]
+            # NOTE Here the masks are 1s of patch sequence length.
             input_bytes, input_masks = read_bytes(input_filename)
             target_bytes, target_masks = read_bytes(target_filename)
 
+            # NOTE -patch_size means that the last eos patch is removed.
+            # and we will add the target extension instead 
             file_bytes = input_bytes[:-PATCH_SIZE] + target_bytes
             file_masks = input_masks[:-1] + target_masks
 
             if len(file_bytes) > PATCH_LENGTH*PATCH_SIZE:
                 print(f"Warning: {input_filename} and {target_filename} are too long after concatenation, truncating to {PATCH_LENGTH*PATCH_SIZE} bytes.")
+                # TODO: PROBLEM: if we can not just truncate... What if all target extensions are lost? Really have to determine How they train all this.... May be restrict the size of the files in the "train" folder? TBD.
                 file_bytes = file_bytes[:PATCH_LENGTH*PATCH_SIZE]
                 file_masks = file_masks[:PATCH_LENGTH]
 
@@ -196,6 +227,8 @@ def process_one_batch(batch):
     # Reduce the loss on GPU 0
     if world_size > 1:
         loss = loss.unsqueeze(0)
+        # add all the losses together and broadcast to GPU 0 
+        # TODO: normally, with DDP, the loss is already reduced across, without the need for manual reduction.
         dist.reduce(loss, dst=0)
         loss = loss / world_size
         dist.broadcast(loss, src=0)
