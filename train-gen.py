@@ -246,6 +246,7 @@ def train_epoch():
 
     for batch in tqdm_train_set:
         minibatches = split_into_minibatches(batch[0], batch[1], BATCH_SIZE//ACCUMULATION_STEPS)
+        # Accumulate gradients for ACCUMULATION_STEPS minibatches
         for minibatch in minibatches:
             with autocast():
                 loss = process_one_batch(minibatch) / ACCUMULATION_STEPS
@@ -255,7 +256,8 @@ def train_epoch():
         scaler.update()
         
         lr_scheduler.step()
-        # set_to_none=True to save memory
+        # set to none = True can save memory
+        # here it is equivalent to model.zero_grad()
         model.zero_grad(set_to_none=True)
         tqdm_train_set.set_postfix({str(global_rank)+'_train_loss': total_train_loss / iter_idx})
         train_steps += 1
