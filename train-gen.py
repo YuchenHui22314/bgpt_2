@@ -6,7 +6,7 @@ import random
 import warnings
 import numpy as np
 from utils import *
-from config import *
+from config_test import *
 from tqdm import tqdm
 from copy import deepcopy
 from torch.cuda.amp import autocast, GradScaler
@@ -228,9 +228,10 @@ def process_one_batch(batch):
     if world_size > 1:
         loss = loss.unsqueeze(0)
         # add all the losses together and broadcast to GPU 0 
-        # TODO: normally, with DDP, the loss is already reduced across, without the need for manual reduction.
+        # NOTE: This code is redundant. The gradient on a GPU is only non-0 when using the loss on that GPU. So useless to reduce the loss on GPU 0.
+        # FIXME should remove / world_size. Because will do so automatically in .backward()
         dist.reduce(loss, dst=0)
-        loss = loss / world_size
+        #loss = loss / world_size
         dist.broadcast(loss, src=0)
 
     return loss
@@ -254,6 +255,7 @@ def train_epoch():
         scaler.update()
         
         lr_scheduler.step()
+        # set_to_none=True to save memory
         model.zero_grad(set_to_none=True)
         tqdm_train_set.set_postfix({str(global_rank)+'_train_loss': total_train_loss / iter_idx})
         train_steps += 1
@@ -406,9 +408,10 @@ if __name__ == "__main__":
                                 'best_epoch': best_epoch,
                                 'min_eval_loss': min_eval_loss
                                 }
-                torch.save(checkpoint, WEIGHTS_PATH)
+                torch.save(checkpoint, WEIGHTS_PATH[:-4] + f"_E{epoch}.pth")
         
         if world_size > 1:
+            # wait for all processes to finish one epoch
             dist.barrier()
 
     if global_rank==0:

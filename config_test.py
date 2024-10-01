@@ -6,8 +6,9 @@ TRAIN_FOLDERS = [
                 # "cifar/train", 
                 # "librispeech8K/train", 
                 # "speech_commands8K/train", 
-                "irishman/train",
+                # "irishman/train",
                 # "cpu_states/train",
+                "test_text_dataset/train",
                  ]     # Folder containing training data
 EVAL_FOLDERS = [
                 # "wikipedia/test",  
@@ -16,23 +17,24 @@ EVAL_FOLDERS = [
                 # "cifar/test", 
                 # "librispeech8K/test", 
                 # "speech_commands8K/test", 
-                "irishman/test",
+                # "irishman/test",
                 # "cpu_states/test",
+                "test_text_dataset/test",
                 ]                                               # Folder containing evaluation data
 EVAL_SPLIT = 0.01                                                # Split of evaluation data
 
 ##########################################
 # Configuration for the paths
 ##########################################
-PRETRAINED_PATH = "weights-irish.pth"                            # Path to pre-trained weights
-WEIGHTS_PATH = "weights-irish.pth"                               # Path to save weights
-LOGS_PATH = "logs-irish.txt"                                     # Path to save logs
+PRETRAINED_PATH = "/data/rech/huiyuche/huggingface/bgpt/weights-text.pth"                            # Path to pre-trained weights
+WEIGHTS_PATH = "/data/rech/huiyuche/huggingface/bgpt/training_ckpts/weights-text.pth"                               # Path to save weights
+LOGS_PATH = "./logs/logs-test_text.txt"                                     # Path to save logs
 
 ##########################################
 # Configuration for the model
 ##########################################
 PATCH_SIZE = 16                                                 # Patch Size
-PATCH_LENGTH = 1024  #shouldn't be 512? Maybe for concat reason?# Patch Length
+PATCH_LENGTH = 512                          #shouldn't be 512? # Patch Length
 BYTE_NUM_LAYERS = 3                                             # Number of layers in the decoder
 PATCH_NUM_LAYERS = 12                                           # Number of layers in the encoder
 HIDDEN_SIZE = 768                                               # Hidden Size
@@ -44,9 +46,9 @@ NUM_EPOCHS = 32                                                 # Number of epoc
 LEARNING_RATE = 1e-5                                            # Learning rate for the optimizer
 BATCH_SIZE = 8                                                  # Batch size for training
 ACCUMULATION_STEPS = 1                                          # Accumulation steps to simulate large batch size
-PATCH_SAMPLING_BATCH_SIZE = 0                                   # Batch size for patch during training, 0 for full batch
-LOAD_FROM_CHECKPOINT = True                                    # Whether to load weights from a checkpoint
-LOAD_FROM_PRETRAINED = False                                     # Whether to load pre-trained weights from a checkpoint
+PATCH_SAMPLING_BATCH_SIZE = 0    #TODO: NEVER USED???           # Batch size for patch during training, 0 for full batch
+LOAD_FROM_CHECKPOINT = False                                    # Whether to load weights from a checkpoint
+LOAD_FROM_PRETRAINED = True                                     # Whether to load pre-trained weights from a checkpoint
 CONVERSION_MODE = None                                          # Mode of conversion None for autoregressive training, 'input->output' for unidirectional conversion, 'input&output' for bidirectional conversion)
 WANDB_LOG = True                                                # Whether to log to wandb
 SHOW_WARNS = False                                              # Whether to show warnings
