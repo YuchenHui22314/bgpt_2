@@ -200,3 +200,83 @@ class bGPTForClassification(PreTrainedModel):
         encoded_patches = self.patch_level_decoder(patches)["last_hidden_state"]
         encoded_patches = torch.mean(encoded_patches, dim=1)
         return self.classifier(encoded_patches)
+
+##########################################################
+# Byte Frequency Distribution
+##########################################################
+
+# code inspired by https://github.com/SCPJaehyeon/byte-frequency-distribution-processing-module
+
+class ByteFrequencyDistribution():
+    """Get byte frequency distribution table & shannon entropy results."""
+
+    def get_byte_frequency_table_by_byte_list(self, byte_stream):
+        """Get byte frequency table dict.
+        @param byte_stream: List[int], int value vaires from 0 to 255.
+        @return: byte frequency table(over 0) dict or None.
+        """
+
+        byte_arr = byte_stream
+        frequency_table = {}
+        filesize = len(byte_arr)
+
+        for byte_idx in range(256):
+            cnt = 0
+            for byte in byte_arr:
+                if byte == byte_idx:
+                    cnt += 1
+            if cnt > 0:
+                # percentage of each byte, in %
+                frequency_table[str(format(byte_idx,'02X'))] = round((float(cnt) / filesize) * 100, 3)
+            elif cnt == 0:
+                frequency_table[str(format(byte_idx,'02X'))] = 0.0
+            else:
+                raise ValueError("byte frequency count error: count < 0")
+
+        return frequency_table
+
+    def get_byte_frequency_table_by_file_path(self, file_path):
+        """Get byte frequency table dict.
+        @param file_path: file path.
+        @return: byte frequency table(over 0) dict or None.
+        """
+        try:
+            with open(file_path, 'rb') as f:
+                data = f.read()
+        except IOError as e:
+            print(exception(e))
+            return {}
+        byte_arr = [byte for byte in data]
+
+        frequency_table = self.get_byte_frequency_table_by_byte_list(byte_arr)
+        return frequency_table
+
+
+    def _get_shannon_entropy(self, bytefreq):
+        """Calculate shannon entropy(min bits per byte-character).
+        @param bytefreq: byte frequency list.
+        @return: shannon entropy float.
+        """
+        ent = 0.0
+        for freq in bytefreq:
+            freq = freq / 100
+            if freq > 0:
+                ent = ent + freq * math.log(freq, 2)
+        ent = -ent
+        return round(ent, 3)
+
+    def run(self, file_path):
+        """Run byte frequency distribution analysis.
+        @return: analysis results dict or None.
+        """
+        if not os.path.exists(self.file_path):
+            return {}
+
+        try:
+            frequency_table = self.get_byte_frequency_table_by_file_path(file_path)
+            if frequency_table:
+                frequency_table["shannon_entropy"] = self._get_shannon_entropy(frequency_table.values())
+            return frequency_table
+        except Exception as e:
+            print(exception(e))
+            return {}
