@@ -3,6 +3,11 @@ import random
 from config import *
 from transformers import GPT2Model, GPT2LMHeadModel, PreTrainedModel
 from samplings import top_p_sampling, top_k_sampling, temperature_sampling
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
 
 class PatchLevelDecoder(PreTrainedModel):
     """
@@ -210,6 +215,37 @@ class bGPTForClassification(PreTrainedModel):
 class ByteFrequencyDistribution():
     """Get byte frequency distribution table & shannon entropy results."""
 
+    def get_fingerprint_by_folder(self, folder_path):
+        """Get byte frequency distribution table & shannon entropy results.
+        @param foler_path: folder path.
+        @return: fingerprint dict or None.
+        """
+
+        file_list = os.listdir(folder_path)
+        print(file_list)
+        list_of_byte_frequency_table = []
+        for file in file_list:
+            byte_frequency_table, _ = self.get_byte_frequency_table_by_file_path(os.path.join(folder_path, file))
+            if byte_frequency_table:
+                list_of_byte_frequency_table.append(byte_frequency_table)
+        
+        average_byte_frequency_table = {k : sum(d[k] for d in list_of_byte_frequency_table) / len(list_of_byte_frequency_table) for k in list_of_byte_frequency_table[0].keys()}
+
+        # transfomrm list of dict to pandas dataframe
+        list_of_str_byte_frequency_table = [{str(k): v for k, v in d.items()} for d in list_of_byte_frequency_table]
+        df = pd.DataFrame(list_of_str_byte_frequency_table)
+        # filter out columns with 0 frequency
+        df = df.loc[:, (df != 0).any(axis=0)]
+        # calculate correlation matrix
+        corr = df.corr()
+        print(corr.shape)
+        return corr, average_byte_frequency_table
+
+
+
+
+
+
     def get_byte_frequency_table_by_byte_list(self, byte_stream):
         """Get byte frequency table dict.
         @param byte_stream: List[int], int value vaires from 0 to 255.
@@ -219,21 +255,15 @@ class ByteFrequencyDistribution():
         byte_arr = byte_stream
         frequency_table = {}
         filesize = len(byte_arr)
+        numerical_frequency_value = [0]*256
+        for byte in byte_arr:
+            numerical_frequency_value[byte] += 1
+        max_frequency = max(numerical_frequency_value)
+        numerical_frequency_value = [round(float(value),3) / max_frequency for value in numerical_frequency_value]
+        numerical_frequency_table = {i: numerical_frequency_value[i] for i in range(256)}
+        frequency_table = {str(format(i,'02X')): numerical_frequency_value[i] for i in range(256)}
 
-        for byte_idx in range(256):
-            cnt = 0
-            for byte in byte_arr:
-                if byte == byte_idx:
-                    cnt += 1
-            if cnt > 0:
-                # percentage of each byte, in %
-                frequency_table[str(format(byte_idx,'02X'))] = round((float(cnt) / filesize) * 100, 3)
-            elif cnt == 0:
-                frequency_table[str(format(byte_idx,'02X'))] = 0.0
-            else:
-                raise ValueError("byte frequency count error: count < 0")
-
-        return frequency_table
+        return frequency_table, numerical_frequency_table
 
     def get_byte_frequency_table_by_file_path(self, file_path):
         """Get byte frequency table dict.
@@ -244,12 +274,12 @@ class ByteFrequencyDistribution():
             with open(file_path, 'rb') as f:
                 data = f.read()
         except IOError as e:
-            print(exception(e))
+            print(e)
             return {}
         byte_arr = [byte for byte in data]
 
-        frequency_table = self.get_byte_frequency_table_by_byte_list(byte_arr)
-        return frequency_table
+        frequency_table, numerical_frequency_table = self.get_byte_frequency_table_by_byte_list(byte_arr)
+        return frequency_table, numerical_frequency_table
 
 
     def _get_shannon_entropy(self, bytefreq):
@@ -273,7 +303,7 @@ class ByteFrequencyDistribution():
             return {}
 
         try:
-            frequency_table = self.get_byte_frequency_table_by_file_path(file_path)
+            frequency_table, _ = self.get_byte_frequency_table_by_file_path(file_path)
             if frequency_table:
                 frequency_table["shannon_entropy"] = self._get_shannon_entropy(frequency_table.values())
             return frequency_table
