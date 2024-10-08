@@ -221,7 +221,7 @@ class ByteFrequencyDistribution():
         """
 
         file_list = os.listdir(folder_path)
-        print(file_list)
+        file_list = [file for file in file_list if os.path.isfile(os.path.join(folder_path, file))]
         list_of_byte_frequency_table = []
         for file in file_list:
             byte_frequency_table, _ = self.get_byte_frequency_table_by_file_path(os.path.join(folder_path, file))
@@ -234,14 +234,14 @@ class ByteFrequencyDistribution():
         list_of_str_byte_frequency_table = [{str(k): v for k, v in d.items()} for d in list_of_byte_frequency_table]
         df = pd.DataFrame(list_of_str_byte_frequency_table)
         # filter out columns with 0 frequency
-        df = df.loc[:, (df != 0).any(axis=0)]
+        df_new = df.loc[:, (df != 0).any(axis=0)]
         # calculate correlation matrix
         corr = df.corr()
-        print(corr.shape)
-        return corr, average_byte_frequency_table
+        corr_new = df_new.corr()
+        return corr, corr_new, average_byte_frequency_table
 
 
-    def get_BFD_Corr_plots(self, data_type, input_folder_path, output_folder_path):
+    def get_BFD_Corr_plots(self, data_type, input_folder_path, output_folder_path, threshold=0.7):
         """Get byte frequency distribution table & correlation matrix.
         @param data_type: data type, str..
         @param input_folder_path: input folder path.
@@ -249,17 +249,66 @@ class ByteFrequencyDistribution():
         @return: None.
         """
 
-        corr, average_byte_frequency_table = self.get_fingerprint_by_folder(input_folder_path)
-
+        corr, corr_new, average_byte_frequency_table = self.get_fingerprint_by_folder(input_folder_path)
+        corr.fillna(-0.5, inplace=True)
         ##################################################
         ############# plot correlation matrix
         ##################################################
+
+        title_full = f'Full Correlation Matrix of Datatype [{data_type}]'
+        title_truncated = f'Core Correlation Matrix of Datatype [{data_type}]'
+
+        output_path_full = os.path.join(output_folder_path, f'{data_type}_corr_full.png')
+        output_path_truncated = os.path.join(output_folder_path, f'{data_type}_corr_core.png')
+
+        self.draw_corr(corr, title_full, threshold, output_path_full)
+        self.draw_corr(corr_new, title_truncated, threshold, output_path_truncated)
+
+        #########################################################
+        ############# plot Byte Frequency Distribution matrix
+        #######################################################
+
+        title = f'Byte Frequency Distribution of Datatype [{data_type}]'
+        output_path = os.path.join(output_folder_path, f'{data_type}_average_BFD.png')
+        self.draw_BFD(average_byte_frequency_table, title, output_path)
+
+    def draw_BFD(self, byte_frequency_table, title, output_path):
+        """Draw byte frequency distribution table.
+        @param byte_frequency_table: byte frequency table dict.
+        @param output_path: output path.
+        @return: None.
+        """
+
+        # plot byte frequency distribution
+        sns.set_style("white")
+        df = pd.DataFrame(list(byte_frequency_table.items()), columns=['Byte Value', 'Frequency'])
+        sns.barplot(
+                x='Byte Value',              # x-axis represents byte values (from 00 to FF)
+                y='Frequency',         # y-axis represents their corresponding frequency in percentage
+                data=df,               # data source is our DataFrame created from the frequency table
+                width=1,
+                color='blue',           # color of the bars
+            )
+
+        # Define the specific x-ticks you want to show (e.g., 1, 32, 64, etc.)
+        xticks = list(range(0,256,32)) + [255]
+
+        # Set the x-ticks as well as y-ticks to only show those values
+        plt.xticks(ticks=xticks)
+        plt.yticks(ticks=list(np.arange(0, 1.01, 0.1)))
+
+        plt.title(title)
+        plt.savefig(output_path)
+        plt.close()
+
+
+    def draw_corr(self, corr, title, threshold, output_path):
 
         plt.figure(figsize=(15, 12))
         upper = corr.where(np.triu(np.ones(corr.shape), k=1).astype(bool))
 
         # all values > 0.5 
-        result = [(column, index) for column in upper.columns for index in upper.index if upper[column][index] > 0.7]
+        result = [(column, index) for column in upper.columns for index in upper.index if upper[column][index] > threshold]
 
         # variable names
         variable_names = set([name for pair in result for name in pair])
@@ -278,37 +327,11 @@ class ByteFrequencyDistribution():
         mask = np.triu(np.ones_like(corr, dtype=bool))
         sns.heatmap(corr, mask = mask, annot=False, fmt=".2f", cmap='coolwarm', linewidths=0.5)
         # Draw the heatmap with the mask and correct aspect ratio
-        plt.title(f'Correlation Matrix of Datatype [{data_type}]')
+        plt.title(title)
         plt.xticks(ticks=all_ticks, labels=xticks_labels, rotation=45)
         plt.yticks(ticks=all_ticks, labels=yticks_labels, rotation=45)
 
-        plt.savefig(os.path.join(output_folder_path, f'{data_type}_corr.png'))
-        plt.close()
-
-        #########################################################
-        ############# plot Byte Frequency Distribution matrix
-        #######################################################
-
-        # plot average byte frequency distribution
-        sns.set_style("white")
-        df = pd.DataFrame(list(average_byte_frequency_table.items()), columns=['Byte Value', 'Frequency'])
-        sns.barplot(
-                x='Byte Value',              # x-axis represents byte values (from 00 to FF)
-                y='Frequency',         # y-axis represents their corresponding frequency in percentage
-                data=df,               # data source is our DataFrame created from the frequency table
-                width=1,
-                color='blue',           # color of the bars
-            )
-
-        # Define the specific x-ticks you want to show (e.g., 1, 32, 64, etc.)
-        xticks = list(range(0,256,32)) + [255]
-
-        # Set the x-ticks as well as y-ticks to only show those values
-        plt.xticks(ticks=xticks)
-        plt.yticks(ticks=list(np.arange(0, 1.01, 0.1)))
-
-        plt.title(f'Average Byte Frequency Distribution of {data_type}')
-        plt.savefig(os.path.join(output_folder_path, f'{data_type}_average_byte_frequency_distribution.png'))
+        plt.savefig(output_path)
         plt.close()
 
     def get_byte_frequency_table_by_byte_list(self, byte_stream):
