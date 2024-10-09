@@ -280,6 +280,7 @@ class ByteFrequencyDistribution():
         """
 
         # plot byte frequency distribution
+        plt.figure(figsize=(15, 12))
         sns.set_style("white")
         df = pd.DataFrame(list(byte_frequency_table.items()), columns=['Byte Value', 'Frequency'])
         sns.barplot(
@@ -291,10 +292,14 @@ class ByteFrequencyDistribution():
             )
 
         # Define the specific x-ticks you want to show (e.g., 1, 32, 64, etc.)
+        byte_values_too_big = [i for i in range(256) if byte_frequency_table[str(format(i,'02X'))] > 0.4]
         xticks = list(range(0,256,32)) + [255]
 
+        final_xticks = sorted(list(set(byte_values_too_big + xticks)))
+        
+
         # Set the x-ticks as well as y-ticks to only show those values
-        plt.xticks(ticks=xticks)
+        plt.xticks(ticks=final_xticks)
         plt.yticks(ticks=list(np.arange(0, 1.01, 0.1)))
 
         plt.title(title)

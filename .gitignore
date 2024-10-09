@@ -3,4 +3,5 @@ __pycache__/*
 wandb/*
 ag_news/*
 cifar/*
-plots/*
+librispeech8K/*
+speech_commands8k/*
