@@ -114,6 +114,7 @@ def read_bytes(filename):
     for byte in file_bytes:
         bytes.append(byte)
 
+    # padding. For each patch, if do not have enough bytes, pad with 256.
     if len(bytes)%PATCH_SIZE!=0:
         bytes = bytes + [256] * (PATCH_SIZE - len(bytes) % PATCH_SIZE)
 

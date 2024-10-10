@@ -16,6 +16,7 @@ class PatchLevelDecoder(PreTrainedModel):
     """
     def __init__(self, config):
         super().__init__(config)
+        # map each patch to a vecor of size n_embd
         self.patch_embedding = torch.nn.Linear(PATCH_SIZE * (256+1), config.n_embd)
         torch.nn.init.normal_(self.patch_embedding.weight, std=0.02)
         self.base = GPT2Model(config)
@@ -29,10 +30,14 @@ class PatchLevelDecoder(PreTrainedModel):
         :param masks: the masks for the patches
         :return: the encoded patches
         """
+        # map each byte in the patch to a one-hot vector of length 256+1
         patches = torch.nn.functional.one_hot(patches, num_classes=256+1).to(self.dtype)
+        # concat these one-hot vectors to get a vector of size PATCH_SIZE * (256+1)
         patches = patches.reshape(len(patches), -1, PATCH_SIZE * (256+1))
+        # map this vector to a vector of size n_embd
         patches = self.patch_embedding(patches.to(self.device))
 
+        # Eliminating padding bytes 
         if masks==None:
             return self.base(inputs_embeds=patches)
         else:
@@ -47,6 +52,7 @@ class ByteLevelDecoder(PreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.special_token_id = 256
+        # GPT2LMHeadMoel is GPT2 + a language model head, which maps the last hidden state to the output logits of length vocab_size
         self.base = GPT2LMHeadModel(config)
 
     def forward(self,
@@ -57,11 +63,15 @@ class ByteLevelDecoder(PreTrainedModel):
         :param encoded_patches: the encoded patches
         :param target_patches: the target patches
         :return: the output of the model
+        Shape of encoded_patch: [# of non-masked patches, hidden_size]
+        Shape of target patches: [# of non-masked patches, patch_size]
         """
-        # preparing the labels for model training
+        
+        # In each patch, insert a special byte at the beginning.
+        # example: [1, 2, 3, 4] -> [256, 1, 2, 3, 4]
         target_patches = torch.cat((torch.ones_like(target_patches[:,0:1])*self.special_token_id, target_patches), dim=1)
 
-        # select patches
+        # Random selection of patches
         if PATCH_SAMPLING_BATCH_SIZE!=0 and PATCH_SAMPLING_BATCH_SIZE<target_patches.shape[0]:
             indices = list(range(len(target_patches)))
             random.shuffle(indices)
@@ -71,11 +81,16 @@ class ByteLevelDecoder(PreTrainedModel):
             encoded_patches = encoded_patches[selected_indices,:]
 
         # get input embeddings
+        # map byte values to embeddings, shape: [# of non-padding patches in all batches, patch_size, hidden_size]
         inputs_embeds = torch.nn.functional.embedding(target_patches, self.base.transformer.wte.weight)
 
-        # concatenate the encoded patches with the input embeddings
+        # concatenate the encoded patches with the input embeddings. Replace the first special byte we just added at the beginning of each patch with the encoded patch.
+
+        # shape: [# of non-padding patches in all batches, patch_size+1, hidden_size]
         inputs_embeds = torch.cat((encoded_patches.unsqueeze(1), inputs_embeds[:,1:,:]), dim=1)
 
+        # NOTE (1) automatically adapted labels. for example, if the input is [1, 2, 3, 4], the label should also be [1, 2, 3, 4] and finally only [2,3,4] will be used to calculate the loss. So here, even if the first byte is a special token in target_patches, it is still valid. Proof in source code: https://github.com/huggingface/transformers/blob/v4.45.2/src/transformers/models/gpt2/modeling_gpt2.py#L1341
+        # NOTE (2) Here, batch size becomes # of non-padding patches in all batches, and sequence length becomes patch_size+1, which is drastically reduced. That is why it can save computation.
         return self.base(inputs_embeds=inputs_embeds,
                          labels=target_patches)
 
@@ -88,6 +103,10 @@ class ByteLevelDecoder(PreTrainedModel):
         :param tokens: already generated tokens in the patch
         :return: the probability distribution of next token
         """
+        '''
+        Shape of encoded_patch: [# of non-masked patches, hidden_size]
+        Shape of token: [# of non-masked patches, patch_size]
+        '''
         encoded_patch = encoded_patch.reshape(1, 1, -1)
         tokens = tokens.reshape(1, -1)
 
@@ -125,18 +144,42 @@ class bGPTLMHeadModel(PreTrainedModel):
         """
         The forward pass of the bGPT model.
         :param patches: the patches to be encoded, size: (batch_size, byte_sequence_length)
-        :param masks: the masks for the patches
+        :param masks: the masks for the patches(1 for content, 0 for padding), size: (batch_size, patch_sequence_length)
         :return: the decoded patches
         """
         # split byte sequence into patches
+        # shape of patches: [batch_size, patch_sequence_length, patch_size]
         patches = patches.reshape(len(patches), -1, PATCH_SIZE)
         
         # patch decoder output
+        # [batch_size, patch_sequence_length, hidden_size]
         encoded_patches = self.patch_level_decoder(patches, masks)["last_hidden_state"]
         
+        '''
+        mask = 
+        [[1, 1, 1, 0, 0]
+        [1, 1, 0, 0, 0]]
+        '''
         left_shift_masks = masks * (masks.flip(1).cumsum(1).flip(1) > 1)
+        '''
+        left_shift_masks = 
+        [[1, 1, 0, 0, 0]
+        [1, 0, 0, 0, 0]]
+        '''
         masks[:, 0] = 0
         
+        '''
+        mask = 
+        [[0, 1, 1, 0, 0]
+        [0, 1, 0, 0, 0]]
+        '''
+        
+
+        # shape of encoded_patches: [number of patches with index left_shift_masks == 1., hidden_size]. So it is in fact flattened.
+        # So. the objective of this step:
+        # (1) remove the last patch for encoded_patches because we cannot insert this to the next bytes in a patch (there is no next patch...)(not nessarily the eos patch, but still designed for this purpose)
+        # (2) remove the first patch for patches, because there is no patch encoding for this patch to insert at position 0 (not necessarily the bos patch, but still designed for this purpose)
+        # (3) not necessarily because in read_bytes(filename), there is a random slicing algorithm.
         encoded_patches = encoded_patches[left_shift_masks == 1]
         patches = patches[masks == 1]
         
