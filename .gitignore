@@ -5,3 +5,4 @@ ag_news/*
 cifar/*
 librispeech8K/*
 speech_commands8k/*
+temp_dir/*
