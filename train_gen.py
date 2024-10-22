@@ -101,7 +101,7 @@ def list_files_in_directory(directories):
                 file_list.append(file_path)
     return file_list
 
-def read_bytes(filename):
+def read_bytes(filename, PATCH_SIZE, PATCH_LENGTH):
     
     ext = filename.split('.')[-1]
     ext = bytearray(ext, 'utf-8')
