@@ -2,7 +2,7 @@ import os
 import time
 import torch
 import sys
-from model import bGPTLMHeadModel
+from model import bGPTLMHeadModel, outlier_handler
 from transformers import GPT2Config
 import numpy as np
 import pandas as pd
@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import seaborn as sns
 import random
+from scipy.stats import zscore
 
 def read_bytes(filename, PATCH_SIZE, PATCH_LENGTH):
     
@@ -230,6 +231,7 @@ class ByteFrequencyDistribution():
 ##########################################################
 # Embedding Analysis
 ##########################################################
+
 PATCH_NUM_LAYERS = 12
 BYTE_NUM_LAYERS = 3
 PATCH_LENGTH = 512
@@ -283,17 +285,7 @@ def inference_1_vector(byte_array, patch_model, PATCH_SIZE):
     last_embedding = last_hidden_state[:, -1, :].reshape(1, -1).detach().cpu().numpy()
     return last_embedding
 
-def outlier_handler(numpy_array, how_to_handle):
-    if how_to_handle == "none":
-        return numpy_array
-    elif how_to_handle == "clip":
-        numpy_array = np.clip(numpy_array, -1, 1)
-        return numpy_array
-    elif how_to_handle == "z-normalization":
-        mean_val = np.mean(numpy_array)
-        std_val = np.std(numpy_array)
-        numpy_array = numpy_array[(numpy_array > mean_val - 3*std_val) & (numpy_array < mean_val + 3*std_val)]
-        return numpy_array
+
 def get_embedding_value_distribution(data_type, input_folder_path, output_folder_path, handle_outlier="none"):
     """Get byte frequency distribution table & correlation matrix.
     @param data_type: data type, str..
@@ -321,6 +313,7 @@ def get_embedding_value_distribution(data_type, input_folder_path, output_folder
             bytes = bytes[:-PATCH_SIZE]
             last_embedding = inference_1_vector(bytes, patch_level_decoder, PATCH_SIZE)
             assert last_embedding.shape == (1, HIDDEN_SIZE)
+            last_embedding = outlier_handler(last_embedding, handle_outlier)
             all_numbers = np.concatenate((all_numbers, last_embedding), axis=0)
 
     all_numbers = all_numbers[1:]
@@ -356,10 +349,10 @@ def get_embedding_value_distribution(data_type, input_folder_path, output_folder
 
     plt.figure(figsize=(10, 6))
     sns.barplot(x=bin_centers, y=bin_counts)
-    plt.title(f"Barplot of Embedding Values Distribution for {data_type}")
+    plt.title(f"Barplot of Embedding Values Distribution for {data_type}, handle_outlier={handle_outlier}")
     plt.xlabel("Embedding Values")
     plt.ylabel("Frequency")
-    plt.savefig(f"{output_folder_path}/{data_type}_barplot.png")
+    plt.savefig(f"{output_folder_path}/{data_type}_barplot_{handle_outlier}.png")
 
 
 
@@ -367,10 +360,10 @@ def get_embedding_value_distribution(data_type, input_folder_path, output_folder
     plt.figure(figsize=(10, 6))
     sns.kdeplot(flattened_embeddings, fill=True)
     plt.gca().xaxis.set_major_formatter(mticker.FormatStrFormatter('%.1f'))
-    plt.title(f"Distribution Curve (KDE) of Embedding Values for {data_type}")
+    plt.title(f"Distribution Curve (KDE) of Embedding Values for {data_type}, handle_outlier={handle_outlier}")
     plt.xlabel("Embedding Values")
     plt.ylabel("Density")
-    plt.savefig(f"{output_folder_path}/{data_type}_kdeplot.png")
+    plt.savefig(f"{output_folder_path}/{data_type}_kdeplot_{handle_outlier}.png")
 
     # 4. Barplot for partial data -- mean-std, mean+std
     partial_embeddings = all_numbers[(all_numbers > mean_val - std_val) & (all_numbers < mean_val + std_val)]
@@ -381,18 +374,19 @@ def get_embedding_value_distribution(data_type, input_folder_path, output_folder
 
     plt.figure(figsize=(10, 6))
     sns.barplot(x=bin_centers, y=bin_counts)
-    plt.title(f"Barplot of Embedding Values Distribution (mean-std, mean+std) for {data_type}")
+    plt.title(f"Barplot of Embedding Values Distribution (mean-std, mean+std) for {data_type}, handle_outlier={handle_outlier}")
     plt.xlabel("Embedding Values")
     plt.ylabel("Frequency")
-    plt.savefig(f"{output_folder_path}/{data_type}_barplot_fine_grained.png")
+    plt.savefig(f"{output_folder_path}/{data_type}_barplot_fine_grained_{handle_outlier}.png")
 
     # 5. Distribution curve (KDE plot) for partial data -- mean-std, mean+std
     plt.figure(figsize=(10, 6))
     sns.kdeplot(partial_flattened_embeddings, fill=True)
     plt.gca().xaxis.set_major_formatter(mticker.FormatStrFormatter('%.1f'))
-    plt.title(f"Distribution Curve (KDE) of Embedding Values (mean-std, mean+std) for {data_type}")
+    plt.title(f"Distribution Curve (KDE) of Embedding Values (mean-std, mean+std) for {data_type},handle_outlier={handle_outlier}")
     plt.xlabel("Embedding Values")
     plt.ylabel("Density")
-    plt.savefig(f"{output_folder_path}/{data_type}_kdeplot_fine_grained.png")
+    plt.savefig(f"{output_folder_path}/{data_type}_kdeplot_fine_grained_{handle_outlier}.png")
 
     return all_numbers
+

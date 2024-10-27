@@ -8,6 +8,7 @@ import warnings
 import numpy as np
 from copy import deepcopy
 from utils import *
+from model import *
 from config import *
 from tqdm import tqdm
 from torch.cuda.amp import autocast, GradScaler
@@ -323,14 +324,14 @@ if __name__ == "__main__":
                 best_epoch = epoch
                 max_eval_acc = eval_acc
                 checkpoint = { 
-                                'model': model.module.state_dict() if hasattr(model, "module") else model.state_dict(),
-                                'optimizer': optimizer.state_dict(),
-                                'lr_sched': lr_scheduler.state_dict(),
-                                'epoch': epoch,
-                                'best_epoch': best_epoch,
-                                'max_eval_acc': max_eval_acc,
-                                "labels": labels
-                                }
+                    'model': model.module.state_dict() if hasattr(model, "module") else model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'lr_sched': lr_scheduler.state_dict(),
+                    'epoch': epoch,
+                    'best_epoch': best_epoch,
+                    'max_eval_acc': max_eval_acc,
+                    "labels": labels
+                    }
                 torch.save(checkpoint, WEIGHTS_PATH)
                 with open(LOGS_PATH,'a') as f:
                     f.write("Best Epoch so far!\n")

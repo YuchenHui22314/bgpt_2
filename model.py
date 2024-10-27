@@ -1,9 +1,33 @@
 import torch
 import random
+from utils import *
 from transformers import GPT2Model, GPT2LMHeadModel, PreTrainedModel
 from samplings import top_p_sampling, top_k_sampling, temperature_sampling
 import numpy as np
 import os
+
+def outlier_handler(numpy_array, how_to_handle):
+    if how_to_handle == "none":
+        return numpy_array
+    elif how_to_handle == "clip":
+        numpy_array = np.clip(numpy_array, -1, 1)
+        return numpy_array
+    elif how_to_handle == "z-normalization":
+        numpy_array = zscore(numpy_array, axis=1)
+
+    return numpy_array
+
+def outlier_handler_tensor(tensor, how_to_handle):
+    if how_to_handle == "none":
+        return tensor
+    elif how_to_handle == "clip":
+        tensor = torch.clamp(tensor, -1, 1)
+    elif how_to_handle == "z-normalization":
+        mean = tensor.mean(dim=1, keepdim=True)
+        std = tensor.std(dim=1, keepdim=True)
+        tensor = (tensor - mean) / std
+
+    return tensor
 
 class PatchLevelDecoder(PreTrainedModel):
     """
@@ -60,10 +84,10 @@ class ByteLevelDecoder(PreTrainedModel):
         """
         The forward pass of the byte-level decoder model.
         :param encoded_patches: the encoded patches
-        :param target_patches: the target patches
+        :param target_patches: the target bytes.
         :return: the output of the model
         Shape of encoded_patch: [# of non-masked patches, hidden_size]
-        Shape of target patches: [# of non-masked patches, patch_size]
+        Shape of target patches: [# of non-masked patches, patch_size] (every element is a byte value)
         """
         
         # In each patch, insert a special byte at the beginning.
@@ -131,12 +155,13 @@ class bGPTLMHeadModel(PreTrainedModel):
     The byte-level decoder is used to generate the bytes within each patch in an auto-regressive manner.
     It inherits PreTrainedModel from transformers.
     """
-    def __init__(self, encoder_config, decoder_config, PATCH_SIZE, PATCH_SAMPLING_BATCH_SIZE):
+    def __init__(self, encoder_config, decoder_config, PATCH_SIZE, PATCH_SAMPLING_BATCH_SIZE, embedding_process):
         super().__init__(encoder_config)
         self.special_token_id = 256
         self.patch_level_decoder = PatchLevelDecoder(encoder_config, PATCH_SIZE)
         self.byte_level_decoder = ByteLevelDecoder(decoder_config, PATCH_SIZE, PATCH_SAMPLING_BATCH_SIZE)
         self.PATCH_SIZE = PATCH_SIZE
+        self.embedding_process = embedding_process
 
     def forward(self,
                 patches: torch.Tensor,
@@ -182,6 +207,7 @@ class bGPTLMHeadModel(PreTrainedModel):
         # (2) remove the first patch for patches, because there is no patch encoding for this patch to insert at position 0 (not necessarily the bos patch, but still designed for this purpose)
         # (3) not necessarily because in read_bytes(filename), there is a random slicing algorithm.
         encoded_patches = encoded_patches[left_shift_masks == 1]
+        encoded_patches = outlier_handler_tensor(encoded_patches, self.embedding_process)
         patches = patches[masks == 1]
         
         return self.byte_level_decoder(encoded_patches, patches)

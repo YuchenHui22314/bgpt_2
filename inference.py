@@ -1,7 +1,9 @@
+import sys
+sys.path.append("./config")
 import os
 import time
 import torch
-from utils import *
+from model import *
 from config import *
 from transformers import  GPT2Config
 
@@ -25,7 +27,7 @@ byte_config = GPT2Config(num_hidden_layers=BYTE_NUM_LAYERS,
                     n_head=HIDDEN_SIZE//64,
                     vocab_size=256+1) # vocal size is all possible values of a byte plus 1 for eos.
 
-model = bGPTLMHeadModel(patch_config, byte_config)
+model = bGPTLMHeadModel(patch_config, byte_config, PATCH_SIZE, PATCH_SAMPLING_BATCH_SIZE)
 print("Parameter Number: "+str(sum(p.numel() for p in model.parameters() if p.requires_grad)))
 
 checkpoint = torch.load(INFERENCE_WEIGHTS_PATH, map_location=torch.device(device))
