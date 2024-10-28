@@ -2,7 +2,6 @@ import os
 import time
 import torch
 import sys
-from model import bGPTLMHeadModel, outlier_handler
 from transformers import GPT2Config
 import numpy as np
 import pandas as pd
@@ -11,6 +10,11 @@ import matplotlib.ticker as mticker
 import seaborn as sns
 import random
 from scipy.stats import zscore
+
+sys.path.append("./config") 
+from model import * 
+from data import *
+from config_embedding_test import *
 
 def read_bytes(filename, PATCH_SIZE, PATCH_LENGTH):
     
@@ -389,4 +393,90 @@ def get_embedding_value_distribution(data_type, input_folder_path, output_folder
     plt.savefig(f"{output_folder_path}/{data_type}_kdeplot_fine_grained_{handle_outlier}.png")
 
     return all_numbers
+
+#############################################################
+############### bits per byte evaluation ####################
+#############################################################
+
+
+def eval_epoch(eval_set, model):
+    print(len(eval_set))
+    tqdm_eval_set = tqdm(eval_set)
+    total_eval_loss = 0
+    iter_idx = 0
+    model.eval()
+  
+    # Evaluate data for one epoch
+    for batch in tqdm_eval_set: 
+        input_patches, input_masks = batch
+        input_patches = input_patches.to(model.device)
+        input_masks = input_masks.to(model.device)
+        with torch.no_grad():
+            cross_entropy_loss = model(input_patches, input_masks).loss
+        bits_per_bits_loss = cross_entropy_loss.item() / np.log(2)
+        total_eval_loss += bits_per_bits_loss 
+        iter_idx += 1
+
+    return total_eval_loss / iter_idx
+
+
+def bits_per_byte_evaluation():
+    """
+    calculate the bits per byte metrics given a config file.
+    """
+    print("the batch size is {}".format(BATCH_SIZE))
+
+    device = torch.device("cuda", 0) if torch.cuda.is_available() else torch.device("cpu")
+
+    patch_config = GPT2Config(vocab_size=1,
+                            n_positions=PATCH_LENGTH,
+                            n_embd=HIDDEN_SIZE,
+                            n_layer=PATCH_NUM_LAYERS,
+                            n_head=HIDDEN_SIZE//64,
+                            n_inner=HIDDEN_SIZE*4)
+    byte_config = GPT2Config(vocab_size=256+1,
+                            n_positions=PATCH_SIZE+1,
+                            n_embd=HIDDEN_SIZE,
+                            n_layer=BYTE_NUM_LAYERS,
+                            n_head=HIDDEN_SIZE//64,
+                            n_inner=HIDDEN_SIZE*4)
+    model = bGPTLMHeadModel(patch_config, byte_config, PATCH_SIZE, PATCH_SAMPLING_BATCH_SIZE,EMBEDDING_CHANGE)
+    model = model.to(device)
+    model.eval()
+
+    # load filenames under train and eval folder
+    eval_files = list_files_in_directory(EVAL_FOLDERS)
+    print(f"Number of files in eval folder: {len(eval_files)}")
+    print("the eval_folders are: ", EVAL_FOLDERS)
+
+    eval_batch_nums = int(len(eval_files) / BATCH_SIZE)
+
+    random.shuffle(eval_files)
+
+    eval_files = eval_files[:eval_batch_nums*BATCH_SIZE]
+
+    eval_set = ByteDataset(eval_files, PATCH_SIZE, PATCH_LENGTH, None, 'eval')
+
+    eval_set = DataLoader(eval_set, batch_size=BATCH_SIZE, collate_fn=collate_batch, shuffle = False)
+
+
+    if LOAD_FROM_PRETRAINED and os.path.exists(PRETRAINED_PATH):
+
+        # Load checkpoint to CPU then to GPU
+        checkpoint = torch.load(PRETRAINED_PATH, map_location='cpu')
+        cpu_model = deepcopy(model)
+        cpu_model.load_state_dict(checkpoint['model'])
+        model.load_state_dict(cpu_model.state_dict())
+
+    eval_loss = eval_epoch(eval_set, model)
+    
+    print(f"Bits per byte loss: {eval_loss} for embedding change {EMBEDDING_CHANGE} on {EVAL_FOLDERS}")
+    
+    # clear gpu memory
+    torch.cuda.empty_cache()
+            
+    
+
+
+
 

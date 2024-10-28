@@ -1,25 +1,25 @@
 # Configuration for generative modelling and classification
 TRAIN_FOLDERS = [
                 # "wikipedia/train",  
-                # "ag_news/train", 
+                "ag_news/train", 
                 # "imagenet32/train", 
                 # "cifar/train", 
                 # "librispeech8K/train", 
                 # "speech_commands8K/train", 
                 # "irishman/train",
                 # "cpu_states/train",
-                "test_text_dataset/train",
+                # "test_text_dataset/train",
                  ]     # Folder containing training data
 EVAL_FOLDERS = [
                 # "wikipedia/test",  
-                # "ag_news/test", 
+                "ag_news/test", 
                 # "imagenet32/test", 
                 # "cifar/test", 
                 # "librispeech8K/test", 
                 # "speech_commands8K/test", 
                 # "irishman/test",
                 # "cpu_states/test",
-                "test_text_dataset/test",
+                #"test_text_dataset/test",
                 ]                                               # Folder containing evaluation data
 EVAL_SPLIT = 0.01                                                # Split of evaluation data
 
@@ -44,7 +44,7 @@ HIDDEN_SIZE = 768                                               # Hidden Size
 ##########################################
 NUM_EPOCHS = 32                                                 # Number of epochs to train for (if early stopping doesn't intervene)
 LEARNING_RATE = 1e-5                                            # Learning rate for the optimizer
-BATCH_SIZE = 2                                                  # Batch size for training
+BATCH_SIZE = 128                                                  # Batch size for training
 ACCUMULATION_STEPS = 1                                          # Accumulation steps to simulate large batch size
 PATCH_SAMPLING_BATCH_SIZE = 0    #TODO: NEVER USED???           # Batch size for patch during training, 0 for full batch
 LOAD_FROM_CHECKPOINT = False                                    # Whether to load weights from a checkpoint
@@ -57,6 +57,7 @@ DETERMINISTIC = True                                           # Whether to set 
 ##########################################
 # Configuration for inference
 ##########################################
+EMBEDDING_CHANGE = "none"
 INFERENCE_WEIGHTS_PATH = "weights-conversion.pth"               # Path to weights for inference
 INPUT_EXT = "txt"                                               # Extension of input files, used for conversion
 TARGET_EXT = "mid"                                              # Extension of target files
