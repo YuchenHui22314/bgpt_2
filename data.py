@@ -40,7 +40,7 @@ def list_files_in_directory(directories):
                 file_list.append(file_path)
     return file_list
 
-def read_bytes(filename, PATCH_SIZE, PATCH_LENGTH):
+def read_bytes(filename, PATCH_SIZE, PATCH_LENGTH, SHOW_WARNS):
     
     ext = filename.split('.')[-1]
     ext = bytearray(ext, 'utf-8')
@@ -139,12 +139,12 @@ class ByteDataset(Dataset):
         ############################################
         if self.CONVERSION_MODE == None:
             filename = self.filenames[idx]
-            file_bytes, file_masks = read_bytes(filename, self.PATCH_SIZE, self.PATCH_LENGTH)
+            file_bytes, file_masks = read_bytes(filename, self.PATCH_SIZE, self.PATCH_LENGTH, False)
         else:
             input_filename, target_filename = self.filenames[idx]
             # NOTE Here the masks are 1s of patch sequence length.
-            input_bytes, input_masks = read_bytes(input_filename, self.PATCH_SIZE, self.PATCH_LENGTH)
-            target_bytes, target_masks = read_bytes(target_filename, self.PATCH_SIZE, self.PATCH_LENGTH)
+            input_bytes, input_masks = read_bytes(input_filename, self.PATCH_SIZE, self.PATCH_LENGTH, False)
+            target_bytes, target_masks = read_bytes(target_filename, self.PATCH_SIZE, self.PATCH_LENGTH, False)
 
             # NOTE -patch_size means that the last eos patch is removed.
             # and we will add the target extension instead 

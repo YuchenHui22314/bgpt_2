@@ -1,10 +1,12 @@
 import torch
 import random
-from utils import *
 from transformers import GPT2Model, GPT2LMHeadModel, PreTrainedModel
 from samplings import top_p_sampling, top_k_sampling, temperature_sampling
 import numpy as np
+from sklearn.preprocessing import minmax_scale
 import os
+
+from utils import *
 
 def outlier_handler(numpy_array, how_to_handle):
     if how_to_handle == "none":
@@ -14,6 +16,16 @@ def outlier_handler(numpy_array, how_to_handle):
         return numpy_array
     elif how_to_handle == "z-normalization":
         numpy_array = zscore(numpy_array, axis=1)
+    elif how_to_handle == "min-max":
+        numpy_array = minmax_scale(numpy_array, axis=1)
+    elif how_to_handle == "max":
+        max_value = np.max(numpy_array, axis=1)
+        # make it same shape as the input
+        numpy_array = np.repeat(max_value[:, np.newaxis], numpy_array.shape[1], axis=1)
+    elif how_to_handle == "min":
+        min_value = np.min(numpy_array, axis=1)
+        # make it same shape as the input
+        numpy_array = np.repeat(min_value[:, np.newaxis], numpy_array.shape[1], axis=1)
 
     return numpy_array
 
@@ -26,6 +38,12 @@ def outlier_handler_tensor(tensor, how_to_handle):
         mean = tensor.mean(dim=1, keepdim=True)
         std = tensor.std(dim=1, keepdim=True)
         tensor = (tensor - mean) / std
+    elif how_to_handle == "min-max":
+        min = tensor.min(dim=1, keepdim=True).values
+        max = tensor.max(dim=1, keepdim=True).values
+        tensor = (tensor - min) / (max - min)
+    elif how_to_handle == "max":
+        tensor = tensor.max(dim=1, keepdim=True).values
 
     return tensor
 

@@ -266,7 +266,7 @@ def load_pretrained_patch_decoder(inference_weights_path):
         n_head=HIDDEN_SIZE//64,
         vocab_size=256+1) # vocal size is all possible values of a byte plus 1 for eos.
 
-    model = bGPTLMHeadModel(patch_config, byte_config, PATCH_SIZE, PATCH_SAMPLING_BATCH_SIZE)
+    model = bGPTLMHeadModel(patch_config, byte_config, PATCH_SIZE, PATCH_SAMPLING_BATCH_SIZE, "none")
     print("Parameter Number: "+str(sum(p.numel() for p in model.parameters() if p.requires_grad)))
 
     checkpoint = torch.load(inference_weights_path, map_location=torch.device(device))

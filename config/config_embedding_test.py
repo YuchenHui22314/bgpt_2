@@ -12,10 +12,10 @@ TRAIN_FOLDERS = [
                  ]     # Folder containing training data
 EVAL_FOLDERS = [
                 # "wikipedia/test",  
-                "ag_news/test", 
+                # ag_news/test", 
                 # "imagenet32/test", 
                 # "cifar/test", 
-                # "librispeech8K/test", 
+                "librispeech8K/train/LibriSpeech/dev-clean", 
                 # "speech_commands8K/test", 
                 # "irishman/test",
                 # "cpu_states/test",
@@ -26,7 +26,7 @@ EVAL_SPLIT = 0.01                                                # Split of eval
 ##########################################
 # Configuration for the paths
 ##########################################
-PRETRAINED_PATH = "/data/rech/huiyuche/huggingface/bgpt/weights-text.pth"                            # Path to pre-trained weights
+PRETRAINED_PATH = "/data/rech/huiyuche/huggingface/bgpt/weights-audio.pth"                            # Path to pre-trained weights
 WEIGHTS_PATH = "/data/rech/huiyuche/huggingface/bgpt/training_ckpts/weights-text.pth"                               # Path to save weights
 LOGS_PATH = "./logs/logs-test_text.txt"                                     # Path to save logs
 
@@ -44,7 +44,7 @@ HIDDEN_SIZE = 768                                               # Hidden Size
 ##########################################
 NUM_EPOCHS = 32                                                 # Number of epochs to train for (if early stopping doesn't intervene)
 LEARNING_RATE = 1e-5                                            # Learning rate for the optimizer
-BATCH_SIZE = 128                                                  # Batch size for training
+BATCH_SIZE = 12                                                  # Batch size for training
 ACCUMULATION_STEPS = 1                                          # Accumulation steps to simulate large batch size
 PATCH_SAMPLING_BATCH_SIZE = 0    #TODO: NEVER USED???           # Batch size for patch during training, 0 for full batch
 LOAD_FROM_CHECKPOINT = False                                    # Whether to load weights from a checkpoint
@@ -57,7 +57,7 @@ DETERMINISTIC = True                                           # Whether to set 
 ##########################################
 # Configuration for inference
 ##########################################
-EMBEDDING_CHANGE = "none"
+EMBEDDING_CHANGE = "min-max"                                       # could be none, clip or z-normalization or min-max
 INFERENCE_WEIGHTS_PATH = "weights-conversion.pth"               # Path to weights for inference
 INPUT_EXT = "txt"                                               # Extension of input files, used for conversion
 TARGET_EXT = "mid"                                              # Extension of target files
